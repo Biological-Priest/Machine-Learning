@@ -6,7 +6,7 @@ Different types of autoencoder scripts
 
 - Variational autoencoder
 
----Preprocessing ---
+# Preprocessing 
 
 There are different things to think about before pushing data into a machine. Below are a few things to consider in your pre-processing procedure. 
 
