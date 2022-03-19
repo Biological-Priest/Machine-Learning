@@ -1,0 +1,124 @@
+### Variational Autoencoder ###
+
+import keras
+from keras.layers import Input, Flatten, Dense, Lambda, Reshape
+from keras.models import Model
+from keras.datasets import mnist
+from keras import backend as K
+import numpy as np
+import matplotlib.pyplot as plt
+import tensorflow as tf
+
+
+## input_shape
+input_shape = (training_data.shape[1],training_data.shape[2],1)
+
+latent_dim = 5 # Number of latent dim parameters
+
+encoder_input = keras.Input(shape=(input_shape), 
+                        dtype=tf.float32,
+                        name='encoder_input')
+
+#print(encoder_input.shape)
+
+x = keras.layers.Flatten()(encoder_input)
+x = Dense(training_data.shape[1]*training_data.shape[2], activation='relu')(x)
+print(x)
+
+x = Dense(600, activation='relu')(x)
+x = Dense(200, activation='relu')(x)
+
+z_mu = Dense(latent_dim, name='latent_mu')(x)   #Mean values of encoded input
+z_sigma = Dense(latent_dim, name='latent_sigma')(x)  #Std dev. (variance) of encoded input
+
+#REPARAMETERIZATION TRICK
+# Define sampling function to sample from the distribution
+# Reparameterize sample based on the process defined by Gunderson and Huang
+# into the shape of: mu + sigma squared x eps
+#This is to allow gradient descent to allow for gradient estimation accurately. 
+
+
+def sample_z(args):
+    z_mu, z_sigma = args
+    eps = K.random_normal(shape=(K.shape(z_mu)[0], K.int_shape(z_mu)[1]))
+    return z_mu + K.exp(z_sigma / 2) * eps
+
+# sample vector from the latent distribution
+# z is the labda custom layer we are adding for gradient descent calculations
+# using mu and variance (sigma)
+    
+z = Lambda(sample_z, output_shape=(latent_dim, ), name='z')([z_mu, z_sigma])
+
+# Define and summarize encoder model.
+encoder = Model(encoder_input, [z_mu, z_sigma, z], name='encoder')
+print(encoder.summary())
+
+
+# Decoder
+
+# decoder takes the latent vector as input
+decoder_input = Input(shape=(latent_dim, ), name='decoder_input')
+
+
+d = Dense(200, activation='relu')(decoder_input)
+d = Dense(600, activation='relu')(d)
+
+print(d)
+d = Dense(input_shape[0]*input_shape[1]*input_shape[2])(d)
+decoder_output = Reshape((input_shape[0], input_shape[1], input_shape[2]))(d)
+
+# Define and summarize decoder model
+decoder = Model(decoder_input, decoder_output, name='decoder') 
+decoder.summary()
+
+# apply the decoder to the latent sample 
+z_decoded = decoder(z)
+
+
+
+#Define custom loss
+#VAE is trained using two loss functions reconstruction loss and KL divergence
+#Let us add a class to define a custom layer with loss
+class CustomLayer(keras.layers.Layer):
+
+    def vae_loss(self, k, z_decoded):
+        k = K.flatten(k)
+        z_decoded = K.flatten(z_decoded)
+        
+        # Reconstruction loss (as we used sigmoid activation we can use binarycrossentropy)
+        recon_loss = keras.metrics.binary_crossentropy(k, z_decoded)
+        
+        # KL divergence
+        kl_loss = -5e-4 * K.mean(1 + z_sigma - K.square(z_mu) - K.exp(z_sigma), axis=-1)
+        return K.mean(recon_loss + kl_loss)
+
+    # add custom loss to the class
+    def call(self, inputs):
+        x = inputs[0]
+        z_decoded = inputs[1]
+        loss = self.vae_loss(x, z_decoded)
+        self.add_loss(loss, inputs=inputs)
+        return x
+
+# apply the custom loss to the input sequences and the decoded latent distribution sample
+
+y = CustomLayer()([encoder_input, z_decoded])
+
+#This will be used as output for vae
+
+
+# VAE Part
+
+vae = Model(encoder_input, y, name='vae')
+
+# Compile VAE
+#vae.compile(opt, loss='binary_crossentropy',metrics =['accuracy'])
+
+vae.compile(optimizer='adam', loss=None)
+vae.summary()
+training = np.expand_dims(training_data,axis=-1)
+print(training.shape)
+        
+history = vae.fit(training,None, epochs = 10, 
+batch_size = 200, 
+validation_split = 0.1, verbose = 1)

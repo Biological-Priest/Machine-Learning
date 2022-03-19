@@ -1,0 +1,62 @@
+
+##Simple autoencoder##
+
+from keras.layers import Input, Dense
+from keras.models import Model
+
+#this is a size of encoded representation
+latent_dim = 10
+
+input_shape = (training_data.shape[1],training_data.shape[2],1) #shape: (20 x 130 x 1)
+
+#this is our input placeholder
+input_s = Input(shape=(input_shape))
+
+#flatten data from ()
+encoded = Flatten()(input_s)
+
+#encoded is an encoded representation of the input
+encoded = Dense(2600, activation='relu')(encoded)
+encoded = Dense(1000, activation='relu')(encoded)
+encoded = Dense(250, activation='relu')(encoded)
+encoded = Dense(latent_dim, activation='relu')(encoded)
+
+#decoded is the lossy reconstruction of the input
+decoded = Dense(250, activation='relu')(encoded)
+decoded = Dense(1000, activation='relu')(decoded)
+decoded = Dense(2600, activation='relu')(decoded)
+
+# Output reshape
+de_out = Reshape((input_shape[0], input_shape[1], input_shape[2]))(decoded)
+
+#latent
+encoded_input = Input(shape=(latent_dim,))
+
+#input encoded representation
+encoder = Model(input_s, encoded)
+
+#input reconstruction
+autoencoder = Model(input_s, de_out)
+
+#retrieve the last layer of the autoencoder model
+decoder_layer1 = autoencoder.layers[-4]
+decoder_layer2 = autoencoder.layers[-3]
+decoder_layer3 = autoencoder.layers[-2]
+decoder_layer4 = autoencoder.layers[-1]
+
+# Decoder layer model
+decoder_layer = decoder_layer4(decoder_layer3(decoder_layer2(decoder_layer1(encoded_input))))
+
+#Output shape
+de_out = Reshape((input_shape[0], input_shape[1], input_shape[2]))(decoder_layer)
+ 
+#Initiate the  decoder model
+decoder = Model(encoded_input, de_out)
+
+#train the autoencoder
+autoencoder.compile(optimizer='adam',loss='binary_crossentropy',metrics =['accuracy'])
+
+#summaries
+encoder.summary()
+decoder.summary()
+autoencoder.summary()
