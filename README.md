@@ -1,4 +1,4 @@
-# Machine-Learning
+# Machine Learning
 
 Different types of autoencoder scripts
 
